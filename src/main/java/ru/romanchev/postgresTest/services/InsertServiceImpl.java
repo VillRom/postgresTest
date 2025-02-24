@@ -12,9 +12,7 @@ import ru.romanchev.postgresTest.repository.UserRepository;
 import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -24,6 +22,7 @@ public class InsertServiceImpl implements InsertService {
     private final UserRepository userRepository;
     private final EventRepository eventRepository;
     private Random random = new Random();
+    private LinkedList<User> usersForEvents = new LinkedList<>();
 
     @Override
     public void insertDb(Long countUsers, Long countEvents) {
@@ -31,11 +30,19 @@ public class InsertServiceImpl implements InsertService {
         eventRepository.saveAll(createdEvents(countEvents));
     }
 
+    private void addUsersId(List<User> users) {
+        for (int i = 0;i <= users.size(); i++) {
+            if (usersForEvents.size() == 100) return;
+            usersForEvents.add(users.get(i));
+        }
+    }
+
     private List<Event> createdEvents(Long countEvents) {
         List<Event> events = new ArrayList<>();
         for (int i = 0; i <= countEvents; i++) {
             Event event = new Event();
-            User user = userRepository.randomUser();
+            int ran = random.nextInt(usersForEvents.size());
+            User user = usersForEvents.get(ran);
             int r = random.nextInt(ListsDates.namesEvent.size());
             event.setNameEvent(ListsDates.namesEvent.get(r));
             event.setCreator(user);
@@ -47,7 +54,7 @@ public class InsertServiceImpl implements InsertService {
 
     private List<User> createdUsers(Long countUsers) {
         List<User> users = new ArrayList<>();
-        for (int i = 0; i <= countUsers; i++) {
+        for (int i = 0; i < countUsers; i++) {
             int r = random.nextInt(ListsDates.names.size());
             User user = new User();
             String name = ListsDates.names.get(r);
@@ -56,6 +63,7 @@ public class InsertServiceImpl implements InsertService {
             user.setNumber(random.nextLong(100000));
             users.add(user);
         }
+        addUsersId(users);
         return users;
     }
 
