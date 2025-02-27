@@ -1,5 +1,6 @@
 package ru.romanchev.postgresTest.services;
 
+import jakarta.transaction.Transactional;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
 import java.time.Month;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -25,9 +27,42 @@ public class InsertServiceImpl implements InsertService {
     private LinkedList<User> usersForEvents = new LinkedList<>();
 
     @Override
+    @Transactional
     public void insertDb(Long countUsers, Long countEvents) {
-        userRepository.saveAll(createdUsers(countUsers));
-        eventRepository.saveAll(createdEvents(countEvents));
+        long partSizeUser = countUsers / 4;
+        long partSizeEvent = countEvents / 6;
+        CompletableFuture<?>[] futures = new CompletableFuture[4];
+
+        for (int i = 0; i < 4; i++) {
+            long start = i * partSizeUser;
+            long end = (i == 3) ? countUsers : (i + 1) * partSizeUser;
+
+            futures[i] = CompletableFuture.supplyAsync(() -> createdUsers(end - start))
+                    .thenAcceptAsync(userRepository::saveAll);
+        }
+
+        for (int i = 0; i < 4; i++) {
+            long start = i * partSizeEvent;
+            long end = (i == 3) ? countEvents : (i + 1) * partSizeEvent;
+
+            futures[i] = CompletableFuture.supplyAsync(() -> createdEvents(end - start))
+                    .thenAcceptAsync(eventRepository::saveAll);
+        }
+    }
+
+    private List<User> createdUsers(Long countUsers) {
+        List<User> users = new ArrayList<>();
+        for (int i = 0; i < countUsers; i++) {
+            int r = random.nextInt(ListsDates.names.size());
+            User user = new User();
+            String name = ListsDates.names.get(r);
+            user.setName(name);
+            user.setNikname("nikname" + name);
+            user.setNumber(random.nextLong(10000));
+            users.add(user);
+        }
+        addUsersId(users);
+        return users;
     }
 
     private void addUsersId(List<User> users) {
@@ -52,20 +87,6 @@ public class InsertServiceImpl implements InsertService {
         return events;
     }
 
-    private List<User> createdUsers(Long countUsers) {
-        List<User> users = new ArrayList<>();
-        for (int i = 0; i < countUsers; i++) {
-            int r = random.nextInt(ListsDates.names.size());
-            User user = new User();
-            String name = ListsDates.names.get(r);
-            user.setName(name);
-            user.setNikname("nikname" + name);
-            user.setNumber(random.nextLong(100000));
-            users.add(user);
-        }
-        addUsersId(users);
-        return users;
-    }
 
     private LocalDateTime randomDateWithTime() {
         LocalDateTime startOfMonth = LocalDateTime.of(2025, Month.FEBRUARY, 1, 0, 0);
